@@ -1,0 +1,260 @@
+---
+title: "ST_02_3"
+output: html_notebook
+---
+
+```{r}
+require(tidyverse)
+require(magrittr)
+```
+
+
+```{r}
+exo9 <- read.table("exo9.txt",h=T,sep="\t",dec=",") %>% as_tibble() %>% mutate_at(c("P","TRT","S","US"),as.factor)
+```
+
+```{r}
+exo9 %>% count(P,TRT,S)
+```
+
+```{r}
+aov9 <- lm(TEMP ~ 1 + TRT + P + S + US%in%S + TRT:P + TRT:S + P:S,data=exo9)
+anova(aov9)
+```
+
+```{r}
+pf(0.128/0.025,1,8,lower.tail = F)
+
+```
+
+#Analyse de la covariance
+
+```{r}
+anacov <- read_tsv("http://www.biostat.envt.fr/wp-content/uploads/Enseignement/Etudiants/anacov.txt")%>% mutate_at(vars(Porc,Sexe),as.factor)
+```
+
+```{r fig.height=12, fig.width=12}
+anacov %>% ggplot(aes(y=Poids,x=Sexe,fill=Sexe)) + geom_boxplot() + facet_wrap(~Age) + theme_minimal()
+
+
+```
+
+```{r fig.height=12, fig.width=12}
+anacov %>% ggplot(aes(x=Age,y=Poids,col=Sexe)) + geom_point() + geom_smooth(method = "lm") + theme_minimal()
+```
+
+```{r fig.height=12, fig.width=12}
+anacov %>% ggplot(aes(x=Age,y=Poids,col=Porc)) + geom_point() + geom_line(group=1) + scale_color_manual(values = inferno(length(unique(anacov$Porc)))) + theme_minimal()
+```
+
+
+```{r}
+anacov %$% table(Porc,Age)
+```
+
+
+```{r}
+aov <- lm(Poids ~ 1 + Porc%in%Sexe + Sexe + Age + Porc%in%Sexe:Age + Sexe:Age  ,data=anacov)
+
+```
+
+```{r}
+anova(aov)
+```
+
+```{r}
+pf(32221/16,1,38,lower.tail = F)
+pf(6135/5,1,38,lower.tail = F)
+```
+
+* Porc:Sexe : variation du poids des animaux du même sexe A LA NAISSANCE (pas de facteur Age)
+* Sexe : 1.578769e-34 : variation du poids moyen à la naissance est différents entre les sexes
+* Age : Pente moyenne indépendamment du sexe 
+* Porc:Sexe:Age : Au sein du même sexe, pas de différence entre les pentes : pentes parallèles entre porcs male
+* Sexe:Age : Pente moyenne entre les sexes sont différentes
+
+Si on utilise pas l'age comme régresseur, on se retrouve avec le même exo que les consultations
+
+
+#Regression logistique
+
+* Simuler 1000 âges selon une loi uniforme sur [10;80]
+
+* Choisir a et b pour que :
+
+$\frac{e^{a+b80}}{1+e^{a+b80}} = 0.8$
+
+$\frac{e^{a+b10}}{1+e^{a+b10}} = 0.1$
+
+* Simuler l'état de 1000 patients d'âge entre 10 et 80
+X = 1 si le patient est malade, 0 si OK 
+
+$p = p(X=1) = \frac{e^{a+b\times Age}}{1+e^{a+b\times Age}}$
+
+```{r}
+ages <- runif(1000,min=10,max=80) %>% round()
+
+a <- -2.713
+b <- 0.0513
+
+
+
+dat <- tibble(
+  Age = ages,
+  Prob = (exp(a+b*Age))/(1+exp(a+b*Age)),
+  Etat = rbinom(1,n = length(Age),prob = Prob)
+)
+```
+
+```{r fig.height=6, fig.width=6}
+dat %>% ggplot(aes(x=Age,y=Prob)) + geom_line(size=1) + geom_point(aes(x=Age,y=Etat)) + theme_minimal()
+```
+
+##Regression logistique entre malade et Age
+
+```{r}
+anaglm <- glm(Etat ~ 1+Age,data=dat,family = "binomial")
+```
+
+```{r}
+summary(anaglm)
+```
+
+Donc $a=-2.86$ et $b=0.0541$.
+
+$se(a) = 0.205883$ et $se(a) = 0.003953$
+
+$z.value(\frac{(b-0)}{se(b)}) = 13.69$
+
+$z.value(\frac{(a-0)}{se(a)}) = -13.92$
+
+```{r fig.height=6, fig.width=6}
+dat %>% mutate(fitted.values = anaglm$fitted.values) %>% ggplot(aes(x=Age,y=fitted.values)) + geom_point(size=1) + theme_minimal()
+```
+
+##Suite de l'exo
+
+```{r}
+datsuite <- read_tsv("data_ex_cart.txt") %>% mutate_at(vars(previous_atb,cure),as.factor)
+```
+
+
+```{r}
+anaglm2 <- glm(cure ~ age + previous_atb + AUC_MIC,data=datsuite,family = "binomial")
+```
+
+```{r}
+summary(anaglm2)
+```
+
+```{r}
+a <- -0.706558
+b <- -0.044420
+c <- -1.746831
+d <- 0.032284
+my.formula <- function(agei,patbi,auc_mici){
+  patbi <- ifelse(patbi == "no",0,1)
+  sub.formula <- exp(a+b*agei+c*patbi+d*auc_mici)
+  (sub.formula/(1+sub.formula))
+}
+
+datsuite <- datsuite %>% mutate(pred = my.formula(agei=age,patbi=previous_atb,auc_mici = AUC_MIC))
+
+```
+
+```{r fig.height=6, fig.width=6}
+datsuite %>% ggplot(aes(x=age,y=pred)) + geom_point(size=1) + theme_minimal() 
+
+datsuite %>% ggplot(aes(x=AUC_MIC,y=pred)) + geom_point(size=1) + theme_minimal() 
+
+datsuite %>% ggplot(aes(x=previous_atb,y=pred)) + geom_boxplot() + theme_minimal() 
+datsuite %>% ggplot(aes(x=cure,y=pred)) + geom_boxplot() + theme_minimal() 
+```
+
+```{r fig.height=6, fig.width=6}
+tibble(predmodel = anaglm2$fitted.values,mypred = datsuite$pred) %>% ggplot(aes(x=mypred,y=predmodel)) + geom_point() + theme_minimal()
+```
+
+
+```{r fig.height=6, fig.width=6}
+build_ROC <- lapply(seq(0.0,1,by=0.1),function(i){
+  cc <- datsuite %>% mutate(predrounded = ifelse(pred > i,1,0)) %>% count(cure,predrounded)
+  a <- cc %>% filter(cure == 0, predrounded == 0) %>% pull(n)
+  a <- ifelse(length(a)==0,0,a)
+  b <- cc %>% filter(cure == 0, predrounded == 1) %>% pull(n)
+  b <- ifelse(length(b)==0,0,b)
+  c <- cc %>% filter(cure == 1, predrounded == 0) %>% pull(n)
+  c <- ifelse(length(c)==0,0,c)
+  d <- cc %>% filter(cure == 1, predrounded == 1) %>% pull(n)
+  d <- ifelse(length(d)==0,0,d)
+  tibble(se = (d/(c+d)),
+         sp = (a/(a+b)),
+         `1-sp`=1-sp,
+         seuil = i)
+}) %>% bind_rows()
+
+build_ROC  %>% ggplot(aes(x=`1-sp`,y=se)) + geom_line(size=1) + theme_minimal() + geom_abline(intercept = 0,slope=1,col="red",linetype="dashed",size=1) + geom_text(aes(label=seuil),col="blue")
+```
+
+###Avec interactions
+
+```{r}
+anaglm2 <- glm(cure ~ 1 +previous_atb + AUC_MIC+ age + previous_atb:AUC_MIC + previous_atb:age ,data=datsuite,family = "binomial")
+```
+
+```{r}
+summary(anaglm2)
+```
+
+La probabilité d'être guéri est diminué quand ils ont pris des antibiotiques avant (previous_atbyes pval) quelque soit l'âge des patients (pval previous_atbyes). L'âge seul agit sur la probabilité d'être guéri (coeff negatif, sign)
+
+```{r}
+mu <- -0.618803
+a <- -1.971987
+b <- 0.030803
+c <- -0.043400
+d <- 0.002847
+e <- -0.002203
+my.formula <- function(agei,patbi,auc_mici){
+  patbi <- ifelse(patbi == "no",0,1)
+  sub.formula <- exp(mu+a*patbi+b*auc_mici+c*agei+(d*patbi*auc_mici)+(e*patbi*agei))
+  (sub.formula/(1+sub.formula))
+}
+
+datsuite <- datsuite %>% mutate(pred = my.formula(agei=age,patbi=previous_atb,auc_mici = AUC_MIC))
+
+```
+
+```{r fig.height=6, fig.width=6}
+datsuite %>% ggplot(aes(x=age,y=pred)) + geom_point(size=1) + theme_minimal() 
+
+datsuite %>% ggplot(aes(x=AUC_MIC,y=pred)) + geom_point(size=1) + theme_minimal() 
+
+datsuite %>% ggplot(aes(x=previous_atb,y=pred)) + geom_boxplot() + theme_minimal() 
+datsuite %>% ggplot(aes(x=cure,y=pred)) + geom_boxplot() + theme_minimal() 
+```
+
+```{r fig.height=6, fig.width=6}
+tibble(predmodel = anaglm2$fitted.values,mypred = datsuite$pred) %>% ggplot(aes(x=mypred,y=predmodel)) + geom_point() + theme_minimal()
+```
+
+
+```{r fig.height=6, fig.width=6}
+build_ROC <- lapply(seq(0.0,1,by=0.1),function(i){
+  cc <- datsuite %>% mutate(predrounded = ifelse(pred > i,1,0)) %>% count(cure,predrounded)
+  a <- cc %>% filter(cure == 0, predrounded == 0) %>% pull(n)
+  a <- ifelse(length(a)==0,0,a)
+  b <- cc %>% filter(cure == 0, predrounded == 1) %>% pull(n)
+  b <- ifelse(length(b)==0,0,b)
+  c <- cc %>% filter(cure == 1, predrounded == 0) %>% pull(n)
+  c <- ifelse(length(c)==0,0,c)
+  d <- cc %>% filter(cure == 1, predrounded == 1) %>% pull(n)
+  d <- ifelse(length(d)==0,0,d)
+  tibble(se = (d/(c+d)),
+         sp = (a/(a+b)),
+         `1-sp`=1-sp,
+         seuil = i)
+}) %>% bind_rows()
+
+build_ROC  %>% ggplot(aes(x=`1-sp`,y=se)) + geom_line(size=1) + theme_minimal() + geom_abline(intercept = 0,slope=1,col="red",linetype="dashed",size=1) + geom_text(aes(label=seuil),col="blue")
+```

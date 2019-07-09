@@ -1,0 +1,49 @@
+---
+title: "CART"
+output: html_notebook
+---
+
+```{r}
+require(rpart)
+require(tidyverse)
+```
+
+```{r}
+datsuite <- read_tsv("data_ex_cart.txt") %>% mutate_at(vars(previous_atb,cure),as.factor)
+```
+
+```{r}
+ana <- rpart(cure ~ .,data=datsuite,method = "class")
+```
+
+```{r}
+summary(ana)
+```
+
+```{r fig.height=12, fig.width=12}
+plot(ana)
+text(ana,use.n=T)
+```
+
+```{r}
+
+build_ROC <- lapply(seq(0,1,by=0.1),function(i){
+  cc <- datsuite %>% mutate(predrounded = ifelse(predict(ana)[,1]<i,1,0)) %>% count(cure,predrounded)
+  a <- cc %>% filter(cure == 0, predrounded == 0) %>% pull(n)
+  a <- ifelse(length(a)==0,0,a)
+  b <- cc %>% filter(cure == 0, predrounded == 1) %>% pull(n)
+  b <- ifelse(length(b)==0,0,b)
+  c <- cc %>% filter(cure == 1, predrounded == 0) %>% pull(n)
+  c <- ifelse(length(c)==0,0,c)
+  d <- cc %>% filter(cure == 1, predrounded == 1) %>% pull(n)
+  d <- ifelse(length(d)==0,0,d)
+  tibble(se = (d/(c+d)),
+         sp = (a/(a+b)),
+         `1-sp`=1-sp,
+         seuil = i)
+}) %>% bind_rows()
+
+build_ROC  %>% ggplot(aes(x=`1-sp`,y=se)) + geom_line(size=1) + theme_minimal() + geom_abline(intercept = 0,slope=1,col="red",linetype="dashed",size=1) + geom_text(aes(label=seuil),col="blue")
+
+```
+

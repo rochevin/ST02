@@ -1,0 +1,183 @@
+---
+title: "Formation stat ST02 école doc"
+output: html_notebook
+---
+
+```{r}
+require(tidyverse)
+```
+
+```{r message=FALSE, warning=FALSE}
+partie1 <- read_tsv("http://www.biostat.envt.fr/wp-content/uploads/Enseignement/Etudiants/reg1.txt")
+partie2 <- read_tsv("http://www.biostat.envt.fr/wp-content/uploads/Enseignement/Etudiants/reg2.txt")
+partie2bis <- read_tsv("http://www.biostat.envt.fr/wp-content/uploads/Enseignement/Etudiants/reg2bis.txt")
+```
+
+##Exo1
+
+
+```{r}
+ana1 <- 
+  lm(poids~1+age,data=partie1)
+summary(ana1)
+```
+
+Donc $b=9.4$ et $a=0.79$.
+
+$se(b) = 0.79$ et $se(a) = 0.01$
+
+$t.value(\frac{(b-0)}{se(b)}) = 11.95$
+
+$t.value(\frac{(a-0)}{se(a)}) = 57.45$
+
+La pvalue de chaque terme a et b indique la probabilité que a et b soient differents de 0 
+
+```{r}
+plot(age,residuals(ana1))
+```
+
+on veut que ça soit symetrique par rapport à 0
+
+on cherche l'homoscedasticité des résidus
+
+```{r}
+qqnorm(residuals(ana1))
+
+```
+
+```{r}
+partie1 %>% ggplot(aes(age,poids)) + geom_point() -> p
+print(p)
+ 
+p + geom_line(data=tibble(x = 1:98,moy = 9.4+0.79*x),aes(x=x,y=moy),col="red")
+
+```
+
+
+
+
+##Exo2
+
+```{r}
+attach(partie2)
+ana2 <- lm(poids~1+age,data=partie2)
+summary(ana2)
+```
+
+```{r}
+b <- -7.87273
+a <- 1.15023
+x <- 25
+A = a*x+b-2*sd(residuals(ana2))
+B = a*x+b+2*sd(residuals(ana2))
+tibble(A=A,B=B)
+```
+```{r}
+plot(age,residuals(ana2))
+```
+
+###Exo2 with polynomial analysis
+
+```{r}
+ana2 <- lm(poids ~ 1 + age + I(age^2))
+summary(ana2)
+```
+
+```{r}
+b <- 12.129598
+a <- -0.061647
+a2 <- 0.012090
+
+dat3 <- tibble(x = 1:98) %>% mutate(moy = b+a*x+a2*x^2)
+ggplot(data=partie2,aes(age,poids)) + geom_point() + geom_line(data=dat3,aes(x=x,y=moy))
+```
+
+
+```{r}
+plot(age,residuals(ana2))
+```
+
+ça forme une parabole -> valide le côté polynome de degrés 2. Par contre on voit qu'en fonction de l'age on a une augmentation de la variance des résidus.
+
+
+```{r}
+ana3 <- lm(poids~1+age+I(age^2),data=partie2,weights = 1/I(age^2))
+summary(ana3)
+```
+
+```{r}
+x <- 1:100
+a = 9.98
+b = 0.088
+c = 0.0104
+d = 0.2036
+moy <- a+b*x+c*x^2
+
+lwr <- moy - 2*d*x
+upr <- moy + 2*d*x
+plot(age,poids)
+lines(x,moy,col="blue")
+lines(x,lwr,col="red")
+lines(x,upr,col="red")
+```
+
+##Partie 2 bis
+
+
+###Modèle droite
+
+
+
+```{r}
+ana4 <- lm(Poids ~ 1 + Age ,data=partie2bis)
+summary(ana4)
+```
+
+```{r}
+plot(age,residuals(ana4))
+```
+
+```{r}
+partie2bis %>% ggplot(aes(x=Age,y=Poids)) + geom_point() + geom_smooth(method="lm")
+```
+
+
+###Modele polynomiale
+```{r}
+ana5 <- lm(Poids ~ 1 + Age + I(Age^2),data=partie2bis)
+summary(ana5)
+```
+
+```{r}
+b <- 8.54943
+a <- -0.77087
+a2 <- 0.48797
+
+dat3 <- tibble(x = 1:19) %>% mutate(moy = b+a*x+a2*x^2)
+ggplot(data=partie2bis,aes(Age,Poids)) + geom_point() + geom_line(data=dat3,aes(x=x,y=moy))
+```
+
+```{r}
+plot(age,residuals(ana5))
+```
+
+
+```{r}
+ana6 <- lm(Poids~1+Age+I(Age^2),data=partie2bis,weights = I(Age^2))
+summary(ana6)
+```
+
+```{r}
+x <- 1:19
+a = 3.67299
+b = 1.76085
+c = 0.44569
+d = 56.54
+moy <- a+b*x+c*x^2
+
+lwr <- moy - 2*d*x
+upr <- moy + 2*d*x
+plot(partie2bis$Age,partie2bis$Poids)
+lines(x,moy,col="blue")
+
+```

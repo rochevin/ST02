@@ -1,0 +1,170 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+#Exo4
+
+###P1
+
+Comparaison de l'effet tératogène de 4 traitements.
+
+```{r}
+require(tidyverse)
+```
+
+
+```{r}
+exo4bis <- read_tsv("http://www.biostat.envt.fr/wp-content/uploads/Enseignement/Etudiants/exo4_bis.txt",col_types = list(TRT = col_factor(),Souris = col_factor(),OS = col_double(),A = col_factor(),B = col_factor()))
+```
+
+
+```{r}
+exo4bis %>% count(TRT,Souris)
+```
+
+```{r}
+aov1 <- lm(OS ~ 1 + TRT + Souris%in%TRT,data = exo4bis)
+```
+
+```{r}
+anova(aov1)
+```
+
+```{r}
+pf(11.38/5.45,3,16,lower.tail = F)
+```
+
+* $P_{TRT} > 0.05$ : pas de différence significative entre les effets du TRT.
+* $P_{\frac{Souris}{TRT}} < 0.05$ : Différence significative entre les moyennes des souris qui recoivent les différents traitements. => Pas d'importance qu'il y ai une variabilité entre individus.
+
+###P2 
+
+* Interaction entre A et B
+* Interaction de A
+* Interaction de B
+
+```{r}
+aov2 <- lm(OS ~ 1 + B + A + Souris%in%A:B +  A:B,data = exo4bis)
+```
+
+```{r}
+anova(aov2)
+```
+```{r}
+pf(6.0802/5.4469,1,16,lower.tail = F)
+pf(0.4788/5.4469,1,16,lower.tail = F)
+pf(27.5810/5.4469,1,16,lower.tail = F)
+
+```
+
+#Exo6 : Mesures répétées
+
+```{r}
+exo6 <- read_tsv("http://www.biostat.envt.fr/wp-content/uploads/Enseignement/Etudiants/exo6.txt") %>% dplyr::mutate_at(c("TRT","consultation","Animal"),as.factor)
+```
+
+Q1 : variable a expliquer ?
+La Note.
+Q2 : Quelles sont les variables explicatives ?
+
+* TRT : 1 ou 2
+* consultation : 1,..,4
+* Animal : 12 Animaux
+
+Q2.1 : Quelle est la nature de ces variables explicatives ?
+
+* TRT : facteur
+* consultation : facteur
+* Animal : facteur
+
+Q2.2 : Quelle est le type de facteur ?
+
+* TRT : Fixe
+* consultation : Fixe
+* Animal : Aléatoire
+
+Q2.3 : Organisation possible des facteurs
+
+* TRT/Consultation : croisement
+
+```{r}
+exo5 %>% count(TRT,consultation)
+```
+
+
+* Animal/consultation : croisement
+
+```{r}
+exo5 %>% count(Animal,consultation)
+exo5 %>% count(Animal,TRT)
+```
+
+
+* Animal/TRT : Hierarchique Animal niché dans traitement
+
+Q2.4 Quels sont les effets estimables ?
+
+* TRT estimable : 
+
+```{r}
+exo5%>%count(TRT)
+```
+
+* consulation estimable :
+
+```{r}
+exo5 %>% count(consultation)
+```
+
+* Animal estimable : une seule note par Animal par consultation mais 4 consultations
+
+```{r}
+exo5 %>% count(Animal)
+```
+
+* TRT*consultation : estimable
+
+```{r}
+exo5 %>% count(TRT,consultation)
+```
+
+* Animal*TRT : pas estimable car 4 observation mais seulement sur un traitement
+
+```{r}
+exo5 %>% count(Animal,TRT)
+```
+
+* Animal*consultation : pas estimable, une seule observation
+
+```{r}
+exo5 %>% count(Animal,consultation)
+```
+
+3.Modèle
+
+$Y_{ijk} = \mu + TRT_{i} + consultation_{j} + {animal_{k}}_{/TRT_{i}} + \epsilon_{ijk}$
+
+```{r}
+aov3 <- lm(note ~ TRT + consultation + TRT:consultation + Animal%in%TRT,data = exo6)
+```
+
+```{r}
+anova(aov3)
+```
+
+Animal est aléatoire, R pense que Animal est fixe, on doit donc corriger la pvalue :
+
+```{r}
+pf(10.08/17.09,1,16,lower.tail = F)
+```
+Animal n'est pas niché dans consultation donc pas besoin de corriger Animal*consultation.
+
+Interpretation de la pvalue :
+
+* TRT:Animal : 2.396e-05 : A l'intérieur d'un traitement les notes varient entre souris :variabilité biologique : tous les animaux ne réagissent pas de la même façon au traitement.
+* TRT : 0.4536755
+* consultation : < 2.2e-16
+* TRT:consultation : 0.36768
+
+Dans cette situation, si il n'y a pas d'intéraction, cela veut dire que les droites ne se croisent jamais, hors, on doit partir du même point pour voir l'effet du traitement au court des consultations. 
